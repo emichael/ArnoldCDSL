@@ -111,12 +111,11 @@ class ArnoldC {
   }
 
   // Parsing functions and variables
-  val mainFunction: StatementSequence = new StatementSequence
   val pushDest = new mutable.Stack[StatementSequence]
   def pushLine(l: Line) = pushDest.head.enqueue(l)
 
   // Declaration patterns TODO: require these to follow each other
-
+  val mainFunction: StatementSequence = new StatementSequence
   def pStartMain = pushDest.push(mainFunction)
   def pEndMain() {
     println("Running...")
@@ -124,7 +123,6 @@ class ArnoldC {
     pushDest.pop()
     runLines(mainFunction) // Run in reverse order
   }
-  def pPrint(p: Printable) = pushLine(Print(p))
 
   var toAssign: Symbol = 'null
   def pStartAssignment(s: Symbol) = toAssign = s
@@ -173,6 +171,8 @@ class ArnoldC {
   def pGrt(a: ArnoldCValue) = pushLine(new Greater(a))
   def pOr(a: ArnoldCValue) = pushLine(new Or(a))
   def pAnd(a: ArnoldCValue) = pushLine(new And(a))
+
+  def pPrint(p: Printable) = pushLine(Print(p))
 
   // All of the tokens are here; don't look at them unless you want to go insane
   class Token
