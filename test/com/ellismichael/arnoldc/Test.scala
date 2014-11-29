@@ -8,6 +8,7 @@ object Test extends ArnoldC {
     GreaterTest.runTest()
     //    ReadingTest.runTest()
     FizzBuzzTest.runTest()
+    FibTest.runTest()
   }
 }
 
@@ -265,5 +266,96 @@ object FizzBuzzTest extends TestArnoldProgram {
 
     YOU HAVE BEEN TERMINATED;
 
+  }
+}
+
+object FibTest extends TestArnoldProgram {
+  val expectedOutput = "1\n1\n\n2\n3\n5\n8\n13\n21\n34\n55\n"
+  def test() {
+    LISTEN TO ME CAREFULLY 'fib
+    I NEED YOUR CLOTHES YOUR BOOTS AND YOUR MOTOR CYCLE 'n
+    GIVE THESE PEOPLE AIR;
+
+    HEY CHRISTMASTREE 'equals1
+    YOU SET US UP (I LIED)
+    GET TO THE CHOPPER 'equals1
+    HERE IS MY INVITATION 1
+    YOU ARE NOT YOU YOURE ME 'n
+    ENOUGH TALK;
+
+    HEY CHRISTMASTREE 'equals1or2
+    YOU SET US UP (I LIED)
+    GET TO THE CHOPPER 'equals1or2
+    HERE IS MY INVITATION 2
+    YOU ARE NOT YOU YOURE ME 'n
+    CONSIDER THAT A DIVORCE 'equals1
+    ENOUGH TALK;
+
+    BECAUSE IM GOING TO SAY PLEASE 'equals1or2
+    ILL BEBACK 1
+    BULLSHIT;
+
+    HEY CHRISTMASTREE 'nm1
+    YOU SET US UP (I LIED)
+    GET TO THE CHOPPER 'nm1
+    HERE IS MY INVITATION 'n
+    GET DOWN 1
+    ENOUGH TALK;
+
+    HEY CHRISTMASTREE 'nm2
+    YOU SET US UP (I LIED)
+    GET TO THE CHOPPER 'nm2
+    HERE IS MY INVITATION 'nm1
+    GET DOWN 1
+    ENOUGH TALK;
+
+    HEY CHRISTMASTREE 'fib1
+    YOU SET US UP (I LIED)
+    GET YOUR ASS TOMARS 'fib1
+    DOIT NOW ('fib, 'nm1)
+
+    HEY CHRISTMASTREE 'fib2
+    YOU SET US UP (I LIED)
+    GET YOUR ASS TOMARS 'fib2
+    DOIT NOW ('fib, 'nm2)
+
+    HEY CHRISTMASTREE 'sum
+    YOU SET US UP (I LIED)
+    GET TO THE CHOPPER 'sum
+    HERE IS MY INVITATION 'fib1
+    GET UP 'fib2
+    ENOUGH TALK;
+
+    ILL BEBACK 'sum
+
+    YOU HAVE NO RESPECT FOR LOGIC;
+    HASTA LA VISTA BABY;
+
+    ITS SHOWTIME;
+
+    HEY CHRISTMASTREE 'isLessThan10
+    YOU SET US UP (NO PROBLEMO)
+    HEY CHRISTMASTREE 'n
+    YOU SET US UP (I LIED)
+    HEY CHRISTMASTREE 'value
+    YOU SET US UP (I LIED)
+
+    STICK AROUND 'isLessThan10
+    GET TO THE CHOPPER 'n
+    HERE IS MY INVITATION 'n
+    GET UP 1
+    ENOUGH TALK
+
+    GET TO THE CHOPPER 'isLessThan10
+    HERE IS MY INVITATION 10
+    LETOFF SOME STEAM BENNET 'n
+    ENOUGH TALK
+
+    GET YOUR ASS TOMARS 'value
+    DOIT NOW ('fib, 'n)
+    TALK TO THE HAND 'value
+    CHILL;
+
+    YOU HAVE BEEN TERMINATED;
   }
 }
