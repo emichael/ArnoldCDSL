@@ -1,9 +1,9 @@
 package com.ellismichael.arnoldc
 
 import scala.collection.mutable
-import sext._
 import scala.Left
 import scala.Right
+import scala.io.StdIn
 
 class ArnoldC {
   // Arguments to most functions are either shorts or variables
@@ -40,6 +40,8 @@ class ArnoldC {
   case class FunctionCall(name: Symbol, args: List[ArnoldCValue], retVar: Symbol) extends Line
   case class Return(a: ArnoldCValue) extends Line
 
+  case class ReadShort(s: Symbol) extends Line
+
   abstract case class Operation(a: ArnoldCValue, operator: Any) extends Line {
     def op(s: Short): Short
   }
@@ -61,8 +63,8 @@ class ArnoldC {
     }
   }
   class Equals(a: ArnoldCValue) extends BinaryRelation(a, (_ == _))
-  // TODO: make sure right order for >
   class Greater(a: ArnoldCValue) extends BinaryRelation(a, (_ > _))
+
   abstract class BooleanRelation(a: ArnoldCValue, operator: (Boolean, Boolean) => Boolean) extends Operation(a, operator) {
     def op(s: Short): Short = {
       val ret = if (operator(getVal(a) != 0, s != 0)) 1 else 0
@@ -79,7 +81,7 @@ class ArnoldC {
     def get(k: Symbol): Option[T] = vals.get(k)
   }
 
-  class Function(val name: Symbol, var args: List[Symbol], val body: StatementSequence)
+  class Function(var args: List[Symbol], val body: StatementSequence)
 
   class Scope[T] {
     val binds = mutable.Stack[Bindings[T]]()
@@ -87,11 +89,23 @@ class ArnoldC {
 
     def increaseScope() = binds.push(new Bindings[T]())
     def decreaseScope() = binds.pop()
-    def set(k: Symbol, v: T) = binds.top.set(k, v)
-    def get(k: Symbol): Option[T] = {
-      for (s <- binds) {
-        s.get(k) match {
-          case Some(v) => return Some(v)
+    def declare(s: Symbol, v: T) = binds.top.set(s, v)
+    def set(s: Symbol, v: T): Unit = {
+      for (stack <- binds) {
+        stack.get(s) match {
+          case Some(_) => {
+            stack.set(s, v)
+            return
+          }
+          case None => ()
+        }
+      }
+      throw new Exception(s + " not yet declared.")
+    }
+    def get(s: Symbol): Option[T] = {
+      for (stack <- binds) {
+        stack.get(s) match {
+          case value @ Some(v) => return value
           case None => ()
         }
       }
@@ -122,20 +136,33 @@ class ArnoldC {
           case Right(s) => println(s)
         }
       }
-      case DeclareVar(s, v) => variables.set(s, v)
+
+      case DeclareVar(s, v) => {
+        variables.declare(s, v)
+      }
+
       case Assignment(s, init, ops) => {
+        getVal(s) // Get to make sure not null
         stack.push(getVal(init))
         runLines(ops)
         variables.set(s, stack.pop())
       }
+
       case o @ Operation(_, _) => stack.push(o.op(stack.pop()))
+
       case If(c, thn, els) => {
-        if (getVal(c) == 0) {
+        if (getVal(c) != 0) {
           runLines(thn)
         } else {
           runLines(els)
         }
       }
+
+      case ReadShort(s) => {
+        val v = StdIn.readShort()
+        variables.set(s, v)
+      }
+
       case While(c, seq) => {
         while (getVal(c) != 0) {
           runLines(seq)
@@ -153,7 +180,7 @@ class ArnoldC {
         val newBindings: List[(Symbol, Short)] = func.args.reverse.zip(args.map(getVal))
         variables.increaseScope()
         for ((s, v) <- newBindings) {
-          variables.set(s, v)
+          variables.declare(s, v)
         }
         // Run the function
         runLines(func.body)
@@ -171,31 +198,84 @@ class ArnoldC {
     }
   }
 
-  // TODO next expected function
+  // Used to partially ensure correct syntax; this is a little bit messy
+  abstract sealed class Keyword
+  case class StartFunction() extends Keyword
+  case class DeclareArgument() extends Keyword
+  case class EndFunctionHeader() extends Keyword
+
+  case class StartAssignment() extends Keyword
+  case class InitAssignment() extends Keyword
+
+  case class DeclareVariable() extends Keyword
+  case class InitVariable() extends Keyword
+
+  var expectedNextType: List[Keyword] = null
+  var previousType: Keyword = null
+  def logKeyword(k: Keyword) {
+    if (expectedNextType != null && !expectedNextType.contains(k)) {
+      throw new Exception("Expecting " + expectedNextType + " but got " + k);
+    }
+
+    var expectedPrevious: List[Keyword] = null
+    expectedNextType = null
+
+    k match {
+      case DeclareVariable() => {
+        expectedNextType = List(InitVariable())
+      }
+      case InitVariable() => {
+        expectedPrevious = List(DeclareVariable())
+      }
+      case StartAssignment() => {
+        expectedNextType = List(InitAssignment())
+      }
+      case InitAssignment() => {
+        expectedPrevious = List(StartAssignment())
+      }
+      case DeclareArgument() => {
+        expectedPrevious = List(StartFunction(), DeclareArgument())
+        expectedNextType = List(DeclareArgument(), EndFunctionHeader())
+      }
+      case EndFunctionHeader() => {
+        expectedPrevious = List(DeclareArgument())
+      }
+      case StartFunction() => {}
+    }
+
+    if (expectedPrevious != null && !expectedPrevious.contains(previousType)) {
+      throw new Exception(k + " should follow " + expectedPrevious + " not " + previousType);
+    }
+
+    previousType = k
+  }
+
   // Parsing functions and variables
   val pushDest = new mutable.Stack[StatementSequence]()
   def pushLine(l: Line) = pushDest.head.enqueue(l)
 
-  // Declaration patterns TODO: require these to follow each other
   val mainFunction: StatementSequence = new StatementSequence()
   def pStartMain = pushDest.push(mainFunction)
   def pEndMain() {
-    println("Running...")
-    //    println(mainFunction.treeString)
-    //    println(functions.get('modulo).get.body.treeString)
     pushDest.pop()
-    runLines(mainFunction) // Run in reverse order
+    runLines(mainFunction)
   }
 
   var currentFunction: Function = null
   def pStartFunctionDeclaraction(s: Symbol) {
+    logKeyword(StartFunction())
     val body: StatementSequence = new StatementSequence()
-    currentFunction = new Function(s, List(), body)
+    currentFunction = new Function(List(), body)
     pushDest.push(body)
     functions.set(s, currentFunction)
   }
-  def pDeclareArgument(s: Symbol) = currentFunction.args = s :: currentFunction.args
-  def pEndFunctionHeader() {} // TODO: do something
+  def pDeclareArgument(s: Symbol) {
+    logKeyword(DeclareArgument())
+    currentFunction.args = s :: currentFunction.args
+  }
+  def pEndFunctionHeader() {
+    logKeyword(EndFunctionHeader())
+  }
   def pEndFunctionDeclaration() {
     currentFunction = null
     pushDest.pop()
@@ -213,17 +293,29 @@ class ArnoldC {
   def pReturn(a: ArnoldCValue) = pushLine(new Return(a))
 
   var toAssign: Symbol = null
-  def pStartAssignment(s: Symbol) = toAssign = s
+  def pStartAssignment(s: Symbol) = {
+    logKeyword(StartAssignment())
+    toAssign = s
+  }
   def pInitAssignment(a: ArnoldCValue) {
+    logKeyword(InitAssignment())
     val seq = new StatementSequence
     pushLine(Assignment(toAssign, a, seq))
     pushDest.push(seq)
   }
   def pEndAssignment = pushDest.pop()
 
-  var declareTemp: Symbol = null // TODO: check for null
-  def pStartDeclare(s: Symbol) = declareTemp = s
-  def pEndDeclare(i: Short) = pushLine(DeclareVar(declareTemp, i))
+  def pReadShort(s: Symbol) = pushLine(new ReadShort(s))
+
+  var declareTemp: Symbol = null
+  def pStartDeclare(s: Symbol) {
+    logKeyword(DeclareVariable())
+    declareTemp = s
+  }
+  def pEndDeclare(i: Short) = {
+    logKeyword(InitVariable())
+    pushLine(DeclareVar(declareTemp, i))
+  }
 
   var ifStack = new mutable.Stack[If]
   def pStartIf(a: ArnoldCValue) {
@@ -284,15 +376,21 @@ class ArnoldC {
   class PeopleToken extends Token
   class MeToken extends Token
   class VistaToken extends Token
+  class AnsweredToken extends Token
+  class WantToken extends Token
+  class HaveToken extends Token
+  class YouToken extends Token
+  class YoureToken extends Token
 
   object ITS extends Token {
     def SHOWTIME = pStartMain
   }
-  object YOU extends Token {
+  object YOU extends YouToken {
     def HAVE(t: BeenToken) = BEEN
     def HAVE(t: NoToken) = NO
     def SET(t: UsToken) = US
     def ARE(t: NotToken) = NOT
+    def QUESTIONS(t: AndToken) = AND
   }
   object BEEN extends BeenToken {
     def TERMINATED = pEndMain
@@ -305,7 +403,6 @@ class ArnoldC {
     def CHOPPER = pStartAssignment _
   }
   object HEY extends Token {
-    // TODO: make this two different objects somehow
     def CHRISTMASTREE = pStartDeclare _
   }
   object US extends UsToken {
@@ -317,18 +414,19 @@ class ArnoldC {
     def TO(t: TheToken) = THE
     def YOUR(t: AssToken) = ASS
   }
-  object YOURE extends Token { // TODO: apostrophe
+  object YOURE extends YoureToken {
     def FIRED = pMul _
     def ME = pEql _
   }
   object HE extends Token {
-    def HAD(t: ToToken) = TO // TODO: throw error otherwise
+    def HAD(t: ToToken) = TO
   }
   object TO extends ToToken {
     def SPLIT = pDiv _
+    def ASK(t: YouToken) = YOU
   }
   object BECAUSE extends Token {
-    def IM(t: GoingToken) = GOING // TODO: error check, maybe by creating subclass
+    def IM(t: GoingToken) = GOING
   }
   object GOING extends GoingToken {
     def TO(t: SayToken) = SAY
@@ -339,6 +437,7 @@ class ArnoldC {
   def BULLSHIT = pElse
   object NO extends NoToken {
     def RESPECT(t: ForToken) = FOR
+    def PROBLEMO = 1.toShort
   }
   object FOR extends ForToken {
     def LOGIC = pEndIf
@@ -357,7 +456,7 @@ class ArnoldC {
     def TALK = pEndAssignment
   }
   object NOT extends NotToken {
-    def YOU(t: YourToken) = YOURE
+    def YOU(t: YoureToken) = YOURE
   }
   object LETOFF extends Token {
     def SOME(t: SteamToken) = STEAM
@@ -382,6 +481,8 @@ class ArnoldC {
   }
   object I extends Token {
     def NEED(t: YourToken) = YOUR
+    def LIED = 0.toShort
+    def WANT(t: ToToken) = TO
   }
   object YOUR extends YourToken {
     def CLOTHES(t: YourToken) = YOUR
@@ -389,6 +490,7 @@ class ArnoldC {
   }
   object AND extends AndToken {
     def YOUR(t: MotorToken) = MOTOR
+    def I(t: WantToken) = WANT
   }
   object MOTOR extends MotorToken {
     def CYCLE = pDeclareArgument _
@@ -413,5 +515,14 @@ class ArnoldC {
   }
   object DOIT extends Token {
     def NOW(s: Symbol, vals: ArnoldCValue*) = pFunctionCall(s, vals)
+  }
+  object WANT extends WantToken {
+    def TO(t: HaveToken) = HAVE
+  }
+  object HAVE extends HaveToken {
+    def THEM(t: AnsweredToken) = ANSWERED
+  }
+  object ANSWERED extends AnsweredToken {
+    def IMMEDIATELY = pReadShort _
   }
 }
